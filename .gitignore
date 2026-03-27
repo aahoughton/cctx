@@ -1,0 +1,10 @@
+# Built binary
+/cctx
+
+# Go
+*.exe
+*.test
+*.out
+
+# Claude Code local settings
+.claude/settings.local.json
