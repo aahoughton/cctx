@@ -2,9 +2,10 @@
 
 A CLI for browsing and managing Claude Code's local conversation history.
 
-Claude Code stores everything locally as JSONL files under `~/.claude/projects/`,
-but provides no built-in way to search, browse, or manage that data across
-sessions. cctx fills that gap.
+Claude Code stores everything locally as JSONL files under `~/.claude/projects/`.
+Its built-in `--resume` lets you pick recent sessions, but there's no way to
+search across conversations, bulk-rename sessions, manage project directories,
+or get LLM-generated summaries of past work. cctx fills that gap.
 
 ## Examples
 
@@ -95,19 +96,19 @@ cctx rename -a                       # batch-rename all unnamed
 cctx rename -an                      # preview batch rename
 
 cctx search "auth middleware"        # search metadata (fast)
-cctx search -f "handleRequest"      # full-text search
-cctx search -A "refactor"           # search all projects
-cctx search -E "fix(ed|ing) bug"    # regex
-cctx search -u "please add"         # user messages only
-cctx search -a "created file"       # assistant messages only
-cctx search -l "auth"               # session IDs only (grep -l style)
+cctx search -f "handleRequest"       # full-text search
+cctx search -A "refactor"            # search all projects
+cctx search -E "fix(ed|ing) bug"     # regex
+cctx search -u "please add"          # user messages only
+cctx search -a "created file"        # assistant messages only
+cctx search -l "auth"                # session IDs only (grep -l style)
 
 cctx rm                              # preview project removal
 cctx rm -x                           # apply
-cctx mv ~/old/path ~/new/path       # preview path update
-cctx mv -x ~/old/path ~/new/path    # apply
-cctx merge ~/orphaned ~/current     # preview merge
-cctx merge -x ~/orphaned ~/current  # apply
+cctx mv ~/old/path ~/new/path        # preview path update
+cctx mv -x ~/old/path ~/new/path     # apply
+cctx merge ~/orphaned ~/current      # preview merge
+cctx merge -x ~/orphaned ~/current   # apply
 cctx prune                           # preview empty conversation removal
 cctx prune -Ax                       # apply across all projects
 ```
@@ -153,6 +154,30 @@ export CONTEXT_LLM_MODEL=llama3
 
 **Flags**: `-U`, `-M`, `-K` override everything (available on `rename`
 and `show`).
+
+## Similar projects
+
+Claude Code has built-in `--resume` (session picker with keyword search)
+and `/rename` (current session only), but no cross-session search, bulk
+operations, or project directory management.
+
+Several third-party tools cover parts of this space:
+
+- **[claude-history](https://github.com/raine/claude-history)** (Rust) —
+  TUI for fuzzy-searching and reading conversations. Polished browsing
+  experience with vim keybindings, resume/fork support. Read-only.
+
+- **[claude-session-index](https://github.com/lee-fuhr/claude-session-index)** (Python) —
+  Indexes sessions into SQLite with FTS5. Analytics, topic tracking,
+  cross-session synthesis. Heavier infrastructure (database, hooks).
+
+- **[cc-conversation-search](https://github.com/akatz-ai/cc-conversation-search)** (Python) —
+  SQLite + FTS5 search with date filtering. Also available as a Claude
+  Code skill for natural language queries.
+
+cctx focuses on the management side: bulk LLM rename, project directory
+operations (ls/rm/mv/merge), pruning, and LLM-generated narrative
+summaries. It's a single Go binary with no database or indexing step.
 
 ## How it works
 
