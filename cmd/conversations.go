@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"os"
 	"text/tabwriter"
-	"time"
 
 	"github.com/spf13/cobra"
 )
+
+var convsAbsolute bool
 
 var conversationsCmd = &cobra.Command{
 	Use:     "convs",
@@ -23,6 +24,7 @@ the current working directory.`,
 }
 
 func init() {
+	conversationsCmd.Flags().BoolVarP(&convsAbsolute, "absolute", "T", false, "show absolute timestamps instead of relative")
 	rootCmd.AddCommand(conversationsCmd)
 }
 
@@ -67,10 +69,7 @@ func runConversations(cmd *cobra.Command, args []string) error {
 			label = "(no summary)"
 		}
 
-		modified := c.Modified.Format(time.RFC3339)
-		if c.Modified.IsZero() {
-			modified = "unknown"
-		}
+		modified := formatTime(c.Modified, convsAbsolute)
 
 		fmt.Fprintf(w, "%s\t%d\t%s\t%s\n", id, c.MessageCount, modified, label)
 	}

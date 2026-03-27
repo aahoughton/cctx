@@ -9,14 +9,25 @@ or get LLM-generated summaries of past work. cctx fills that gap.
 
 ## Examples
 
-See what you've been working on:
+See what you've been working on across all projects:
+
+```
+$ cctx
+SESSION   PROJECT             MSGS  MODIFIED    SUMMARY
+0c5dc16b  ~/personal/cctx     270   5 min ago   native anthropic sdk support
+bd66e34e  ~/personal/cctx     33    11h ago     conversation naming best practices
+a1b2c3d4  ~/src/myapp         45    yesterday   auth middleware rewrite
+e5f6a7b8  ~/src/myapp         120   2d ago      api endpoint security audit
+```
+
+List conversations for the current project:
 
 ```
 $ cctx convs
-SESSION   MSGS  MODIFIED              SUMMARY
-0c5dc16b  270   2026-03-27T15:33:19Z  native anthropic sdk support
-bd66e34e  33    2026-03-27T04:16:56Z  conversation naming best practices
-29e5b4b2  123   2026-03-27T02:46:41Z  llm summarization debugging
+SESSION   MSGS  MODIFIED    SUMMARY
+0c5dc16b  270   5 min ago   native anthropic sdk support
+bd66e34e  33    11h ago     conversation naming best practices
+29e5b4b2  123   15h ago     llm summarization debugging
 ```
 
 Find that conversation where you fixed the auth bug last week:
@@ -81,9 +92,14 @@ cctx completion zsh > "${fpath[1]}/_cctx"
 ## Commands
 
 ```sh
+cctx                                 # recent conversations across all projects
+cctx -n 20                           # show 20 most recent (default 10)
+cctx -T                              # absolute timestamps
+
 cctx ls                              # list projects
 cctx ls -o                           # orphaned projects only
 cctx convs                           # list conversations (cwd project)
+cctx convs -T                        # absolute timestamps
 cctx convs -p ~/other/project        # specific project
 
 cctx show abc123                     # conversation digest
