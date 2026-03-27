@@ -4,16 +4,28 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	"github.com/aahoughton/cctx/internal/claude"
 	"github.com/spf13/cobra"
 )
 
+func version() string {
+	if info, ok := debug.ReadBuildInfo(); ok {
+		v := info.Main.Version
+		if v != "" && v != "(devel)" && !strings.Contains(v, "0.0.0-") {
+			return v
+		}
+	}
+	return "dev"
+}
+
 var store *claude.Store
 
 var rootCmd = &cobra.Command{
-	Use:   "cctx",
+	Use:     "cctx",
+	Version: version(),
 	Short: "Inspect and manage Claude Code conversations and projects",
 	Long: `cctx — Claude Code context manager.
 
