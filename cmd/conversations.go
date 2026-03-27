@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
@@ -68,6 +69,7 @@ func runConversations(cmd *cobra.Command, args []string) error {
 		if label == "" {
 			label = "(no summary)"
 		}
+		label = sanitizeLabel(label)
 
 		modified := formatTime(c.Modified, convsAbsolute)
 
@@ -82,4 +84,25 @@ func truncateStr(s string, n int) string {
 		return s
 	}
 	return string(r[:n]) + "..."
+}
+
+// sanitizeLabel collapses newlines and surrounding whitespace into a single
+// space and truncates the result so it fits in a table row.
+func sanitizeLabel(s string) string {
+	// Replace any run of \r, \n, or surrounding whitespace with a single space.
+	var b strings.Builder
+	inSpace := false
+	for _, r := range s {
+		if r == '\n' || r == '\r' {
+			if !inSpace {
+				b.WriteByte(' ')
+				inSpace = true
+			}
+			continue
+		}
+		inSpace = false
+		b.WriteRune(r)
+	}
+	out := strings.TrimSpace(b.String())
+	return truncateStr(out, 60)
 }

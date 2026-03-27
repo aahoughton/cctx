@@ -100,6 +100,7 @@ func runRm(cmd *cobra.Command, args []string) error {
 			if label == "" {
 				label = "(no summary)"
 			}
+			label = sanitizeLabel(label)
 			fmt.Printf("  %s  %s\n", id, label)
 		}
 	}

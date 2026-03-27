@@ -255,6 +255,7 @@ func printResults(results []searchResult, showProject bool) {
 		if label == "" {
 			label = "(unnamed)"
 		}
+		label = sanitizeLabel(label)
 
 		if showProject {
 			fmt.Printf("  %s  %s  %s  %s\n", id, modified, r.project, label)

@@ -80,6 +80,7 @@ func runRecent(cmd *cobra.Command, args []string) error {
 		if label == "" {
 			label = "(no summary)"
 		}
+		label = sanitizeLabel(label)
 
 		modified := formatTime(c.Modified, recentAbsolute)
 

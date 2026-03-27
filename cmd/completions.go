@@ -77,6 +77,7 @@ func sessionCompletionsForProject(dirName, toComplete string) ([]string, cobra.S
 			if label == "" {
 				label = truncateStr(c.FirstPrompt, 40)
 			}
+			label = sanitizeLabel(label)
 			comps = append(comps, fmt.Sprintf("%s\t%s", id, label))
 		}
 	}
