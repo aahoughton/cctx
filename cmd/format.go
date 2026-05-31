@@ -5,6 +5,23 @@ import (
 	"time"
 )
 
+// sessionLong is bound to the persistent -L/--long flag. When true,
+// displaySessionID returns full UUIDs instead of an 8-char prefix so the
+// output can be piped to `claude --resume`.
+var sessionLong bool
+
+// displaySessionID returns the session ID truncated to 8 chars (the default)
+// or the full UUID when -L/--long is set.
+func displaySessionID(id string) string {
+	if sessionLong {
+		return id
+	}
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
 // relativeTime formats a timestamp as a human-friendly relative string.
 func relativeTime(t time.Time) string {
 	if t.IsZero() {

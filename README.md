@@ -95,6 +95,7 @@ cctx completion zsh > "${fpath[1]}/_cctx"
 cctx                                 # recent conversations across all projects
 cctx -n 20                           # show 20 most recent (default 10)
 cctx -T                              # absolute timestamps
+cctx -L                              # full session UUIDs (for `claude --resume`)
 
 cctx ls                              # list projects
 cctx ls -o                           # orphaned projects only

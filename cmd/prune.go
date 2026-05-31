@@ -113,10 +113,7 @@ func pruneProjectCount(project *claude.Project) (int, error) {
 			continue
 		}
 
-		id := conv.SessionID
-		if len(id) > 8 {
-			id = id[:8]
-		}
+		id := displaySessionID(conv.SessionID)
 		fmt.Printf("  %-45s %s (%d msgs)\n", project.OriginalPath, id, conv.MessageCount)
 
 		if pruneExecute {

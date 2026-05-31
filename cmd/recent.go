@@ -65,10 +65,7 @@ func runRecent(cmd *cobra.Command, args []string) error {
 
 	for _, rc := range all {
 		c := rc.conv
-		id := c.SessionID
-		if len(id) > 8 {
-			id = id[:8]
-		}
+		id := displaySessionID(c.SessionID)
 
 		label := c.Summary
 		if label == "" {

@@ -90,10 +90,7 @@ func runRm(cmd *cobra.Command, args []string) error {
 	if len(convs) > 0 {
 		fmt.Println()
 		for _, c := range convs {
-			id := c.SessionID
-			if len(id) > 8 {
-				id = id[:8]
-			}
+			id := displaySessionID(c.SessionID)
 			label := c.Summary
 			if label == "" {
 				label = claude.Truncate(c.FirstPrompt, 60)

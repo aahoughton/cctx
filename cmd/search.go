@@ -254,10 +254,7 @@ func printResults(results []searchResult, showProject bool) {
 	fmt.Printf("%d hit(s) across %d conversation(s):\n\n", total, len(results))
 
 	for _, r := range results {
-		id := r.conv.SessionID
-		if len(id) > 8 {
-			id = id[:8]
-		}
+		id := displaySessionID(r.conv.SessionID)
 
 		modified := r.conv.Modified.Format(time.RFC3339)
 

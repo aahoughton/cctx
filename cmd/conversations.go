@@ -55,10 +55,7 @@ func runConversations(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(w, "SESSION\tMSGS\tMODIFIED\tSUMMARY")
 
 	for _, c := range convs {
-		id := c.SessionID
-		if len(id) > 8 {
-			id = id[:8]
-		}
+		id := displaySessionID(c.SessionID)
 
 		label := c.Summary
 		if label == "" {

@@ -54,6 +54,7 @@ Environment variables for LLM-powered features:
 func init() {
 	rootCmd.PersistentFlags().String("claude-dir", "", "override path to Claude projects directory")
 	rootCmd.PersistentFlags().StringP("project", "p", "", "project path (defaults to current directory)")
+	rootCmd.PersistentFlags().BoolVarP(&sessionLong, "long", "L", false, "print full session IDs (UUIDs) instead of 8-char prefixes")
 	rootCmd.RegisterFlagCompletionFunc("project", completeProjectPath)
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 

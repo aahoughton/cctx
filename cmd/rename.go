@@ -178,10 +178,7 @@ func runRenameAll(cmd *cobra.Command) error {
 	var results []result
 
 	for _, conv := range unnamed {
-		id := conv.SessionID
-		if len(id) > 8 {
-			id = id[:8]
-		}
+		id := displaySessionID(conv.SessionID)
 
 		old := conv.Summary
 		if old == "" {
