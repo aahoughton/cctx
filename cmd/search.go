@@ -25,6 +25,9 @@ everywhere, or -p to target a specific project.
 
 Filter by message role with --user or --assistant.
 
+Matching is case-insensitive by default. Pass -s/--case-sensitive to match
+case (applies to both substring and regex matching).
+
 Examples:
   cctx search "auth middleware"          # search current project
   cctx search -f "handleRequest"         # full-text search
@@ -32,18 +35,20 @@ Examples:
   cctx search -E "fix(ed|ing) bug"       # regex
   cctx search -u "please add"            # only user messages
   cctx search -a "created file"          # only assistant messages
+  cctx search -s "TODO"                  # case-sensitive
   cctx search -l "auth"                  # session IDs only (grep -l style)`,
 	Args: cobra.ExactArgs(1),
 	RunE: runSearch,
 }
 
 var (
-	searchFull        bool
-	searchAllProjects bool
-	searchRegex       bool
-	searchUser        bool
-	searchAssistant   bool
-	searchFilesOnly   bool
+	searchFull          bool
+	searchAllProjects   bool
+	searchRegex         bool
+	searchUser          bool
+	searchAssistant     bool
+	searchFilesOnly     bool
+	searchCaseSensitive bool
 )
 
 const maxHitsPerConv = 5
@@ -55,6 +60,7 @@ func init() {
 	searchCmd.Flags().BoolVarP(&searchUser, "user", "u", false, "only match user messages (implies -f)")
 	searchCmd.Flags().BoolVarP(&searchAssistant, "assistant", "a", false, "only match assistant messages (implies -f)")
 	searchCmd.Flags().BoolVarP(&searchFilesOnly, "files-only", "l", false, "print only session IDs of matching conversations")
+	searchCmd.Flags().BoolVarP(&searchCaseSensitive, "case-sensitive", "s", false, "match case (default: case-insensitive)")
 	registerCompletions(searchCmd, "")
 	rootCmd.AddCommand(searchCmd)
 }
@@ -127,11 +133,18 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
 func buildMatcher(pattern string) (func(string) bool, error) {
 	if searchRegex {
-		re, err := regexp.Compile("(?i)" + pattern)
+		expr := pattern
+		if !searchCaseSensitive {
+			expr = "(?i)" + expr
+		}
+		re, err := regexp.Compile(expr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid regex: %w", err)
 		}
 		return re.MatchString, nil
+	}
+	if searchCaseSensitive {
+		return func(s string) bool { return strings.Contains(s, pattern) }, nil
 	}
 	lower := strings.ToLower(pattern)
 	return func(s string) bool {

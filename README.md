@@ -111,12 +111,13 @@ cctx rename abc123                   # auto-name via LLM
 cctx rename -a                       # batch-rename all unnamed
 cctx rename -an                      # preview batch rename
 
-cctx search "auth middleware"        # search metadata (fast)
+cctx search "auth middleware"        # search metadata (fast, case-insensitive)
 cctx search -f "handleRequest"       # full-text search
 cctx search -A "refactor"            # search all projects
 cctx search -E "fix(ed|ing) bug"     # regex
 cctx search -u "please add"          # user messages only
 cctx search -a "created file"        # assistant messages only
+cctx search -s "TODO"                # case-sensitive
 cctx search -l "auth"                # session IDs only (grep -l style)
 
 cctx rm                              # preview project removal
