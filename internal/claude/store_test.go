@@ -286,6 +286,17 @@ func TestConversationsFromIndex(t *testing.T) {
 
 	now := time.Now().UTC()
 	sid := "11111111-2222-3333-4444-555555555555"
+	sidechainSid := "99999999-9999-9999-9999-999999999999"
+
+	// Write the actual JSONL files first — the index is metadata-only.
+	writeConversationJSONL(t, projDir, sid, []ConversationRecord{
+		{Type: "user", SessionID: sid, UUID: "u1", Timestamp: now.Format(time.RFC3339Nano),
+			Message: &MessageContent{Role: "user", Content: "real prompt"}},
+	})
+	writeConversationJSONL(t, projDir, sidechainSid, []ConversationRecord{
+		{Type: "user", SessionID: sidechainSid, UUID: "u1", Timestamp: now.Format(time.RFC3339Nano),
+			Message: &MessageContent{Role: "user", Content: "sidechain"}},
+	})
 
 	idx := SessionsIndex{
 		Version: SchemaVersion,
@@ -301,7 +312,7 @@ func TestConversationsFromIndex(t *testing.T) {
 				GitBranch:    "main",
 			},
 			{
-				SessionID:   "sidechain-id",
+				SessionID:   sidechainSid,
 				IsSidechain: true,
 			},
 		},
@@ -324,6 +335,50 @@ func TestConversationsFromIndex(t *testing.T) {
 	}
 	if c.GitBranch != "main" {
 		t.Errorf("gitBranch = %q, want main", c.GitBranch)
+	}
+}
+
+// TestConversationsStaleIndex covers the bug where sessions-index.json lists
+// sessions whose files have been deleted, while a real .jsonl on disk is
+// missing from the index. The on-disk file must be returned; the ghost
+// entries must be dropped.
+func TestConversationsStaleIndex(t *testing.T) {
+	store, baseDir := setupTestStore(t)
+	projName := EncodeDirName(baseDir)
+	projDir := filepath.Join(baseDir, projName)
+
+	now := time.Now().UTC()
+	onDiskSid := "ondisk00-0000-0000-0000-000000000000"
+	ghostSid := "ghost000-0000-0000-0000-000000000000"
+
+	// File on disk, NOT in index
+	writeConversationJSONL(t, projDir, onDiskSid, []ConversationRecord{
+		{Type: "user", SessionID: onDiskSid, UUID: "u1", Timestamp: now.Format(time.RFC3339Nano),
+			Message: &MessageContent{Role: "user", Content: "I just started this session"}},
+	})
+
+	// Index entry pointing at a file that doesn't exist
+	idx := SessionsIndex{
+		Version: SchemaVersion,
+		Entries: []IndexEntry{
+			{
+				SessionID: ghostSid,
+				FullPath:  filepath.Join(projDir, ghostSid+".jsonl"),
+				Summary:   "long-deleted session",
+			},
+		},
+	}
+	writeSessionsIndex(t, projDir, idx)
+
+	convs, err := store.Conversations(projName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(convs) != 1 {
+		t.Fatalf("expected 1 conversation (on-disk only), got %d", len(convs))
+	}
+	if convs[0].SessionID != onDiskSid {
+		t.Errorf("got session %q, want %q", convs[0].SessionID, onDiskSid)
 	}
 }
 
@@ -445,10 +500,10 @@ func TestUpdateSessionsIndex(t *testing.T) {
 }
 
 func TestTruncate(t *testing.T) {
-	if got := truncate("short", 100); got != "short" {
+	if got := Truncate("short", 100); got != "short" {
 		t.Errorf("truncate short = %q", got)
 	}
-	if got := truncate("this is a longer string", 10); got != "this is a ..." {
+	if got := Truncate("this is a longer string", 10); got != "this is a ..." {
 		t.Errorf("truncate long = %q", got)
 	}
 }

@@ -153,15 +153,18 @@ func resolveByFilesystemWalk(projectDir string) string {
 
 		next := parts[c.idx]
 
-		// Option A: this "-" is a "/" (directory separator)
-		queue = append(queue, candidate{
-			path: c.path + "/" + next,
-			idx:  c.idx + 1,
-		})
+		// Queue is LIFO; push the less-likely option first so the more-likely
+		// one is explored first. Most paths have no literal hyphens.
 
 		// Option B: this "-" is a literal hyphen in the same path component
 		queue = append(queue, candidate{
 			path: c.path + "-" + next,
+			idx:  c.idx + 1,
+		})
+
+		// Option A: this "-" is a "/" (directory separator)
+		queue = append(queue, candidate{
+			path: c.path + "/" + next,
 			idx:  c.idx + 1,
 		})
 	}
@@ -202,62 +205,79 @@ func (s *Store) Projects() ([]Project, error) {
 }
 
 // Conversations returns all conversations for a given project directory name.
-// It first tries to read sessions-index.json; if that's missing or has an
-// unexpected version, it falls back to scanning .jsonl files directly.
+//
+// The filesystem (the *.jsonl files actually present in the project dir) is
+// the source of truth for which conversations exist. sessions-index.json is
+// used only as a metadata cache to enrich those files with the LLM summary,
+// message count, etc. Index entries with no corresponding file are dropped;
+// files with no corresponding index entry are parsed directly. This keeps
+// search/list correct even when the index is stale.
 func (s *Store) Conversations(projectDir string) ([]Conversation, error) {
 	projPath := filepath.Join(s.BaseDir, projectDir)
 
-	convs, err := s.conversationsFromIndex(projPath)
-	if err == nil {
-		return convs, nil
-	}
-
-	return s.conversationsFromFiles(projPath)
-}
-
-func (s *Store) conversationsFromIndex(projPath string) ([]Conversation, error) {
-	indexPath := filepath.Join(projPath, "sessions-index.json")
-	data, err := os.ReadFile(indexPath)
+	matches, err := filepath.Glob(filepath.Join(projPath, "*.jsonl"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("globbing conversation files: %w", err)
 	}
 
-	var idx SessionsIndex
-	if err := json.Unmarshal(data, &idx); err != nil {
-		return nil, fmt.Errorf("parsing sessions-index.json: %w", err)
-	}
-
-	if idx.Version != SchemaVersion {
-		return nil, fmt.Errorf(
-			"sessions-index.json version %d does not match expected version %d — "+
-				"Claude's storage format may have changed",
-			idx.Version, SchemaVersion,
-		)
-	}
+	indexByID := s.indexEntriesByID(projPath)
 
 	var convs []Conversation
-	for _, e := range idx.Entries {
-		if e.IsSidechain {
+	for _, fpath := range matches {
+		sid := strings.TrimSuffix(filepath.Base(fpath), ".jsonl")
+		if entry, ok := indexByID[sid]; ok {
+			if entry.IsSidechain {
+				continue
+			}
+			created, _ := time.Parse(time.RFC3339Nano, entry.Created)
+			modified, _ := time.Parse(time.RFC3339Nano, entry.Modified)
+			convs = append(convs, Conversation{
+				SessionID:    entry.SessionID,
+				Summary:      entry.Summary,
+				FirstPrompt:  entry.FirstPrompt,
+				MessageCount: entry.MessageCount,
+				Created:      created,
+				Modified:     modified,
+				GitBranch:    entry.GitBranch,
+				FilePath:     fpath,
+			})
 			continue
 		}
-		created, _ := time.Parse(time.RFC3339Nano, e.Created)
-		modified, _ := time.Parse(time.RFC3339Nano, e.Modified)
-		convs = append(convs, Conversation{
-			SessionID:    e.SessionID,
-			Summary:      e.Summary,
-			FirstPrompt:  e.FirstPrompt,
-			MessageCount: e.MessageCount,
-			Created:      created,
-			Modified:     modified,
-			GitBranch:    e.GitBranch,
-			FilePath:     e.FullPath,
-		})
+		conv, err := s.parseConversationFile(fpath)
+		if err != nil {
+			continue
+		}
+		convs = append(convs, conv)
 	}
 
 	sort.Slice(convs, func(i, j int) bool {
 		return convs[i].Modified.After(convs[j].Modified)
 	})
 	return convs, nil
+}
+
+// indexEntriesByID reads sessions-index.json and returns its entries keyed by
+// session ID. Returns an empty map (no error) when the index is missing,
+// unparseable, or has an unrecognized schema version — callers should still
+// be able to enumerate conversations from the filesystem alone.
+func (s *Store) indexEntriesByID(projPath string) map[string]IndexEntry {
+	indexPath := filepath.Join(projPath, "sessions-index.json")
+	data, err := os.ReadFile(indexPath)
+	if err != nil {
+		return nil
+	}
+	var idx SessionsIndex
+	if err := json.Unmarshal(data, &idx); err != nil {
+		return nil
+	}
+	if idx.Version != SchemaVersion {
+		return nil
+	}
+	out := make(map[string]IndexEntry, len(idx.Entries))
+	for _, e := range idx.Entries {
+		out[e.SessionID] = e
+	}
+	return out
 }
 
 func (s *Store) conversationsFromFiles(projPath string) ([]Conversation, error) {
@@ -336,7 +356,7 @@ func (s *Store) parseConversationFile(fpath string) (Conversation, error) {
 
 		if rec.Type == "user" && firstPrompt == "" && rec.Message != nil {
 			if s, ok := rec.Message.Content.(string); ok {
-				firstPrompt = truncate(s, 200)
+				firstPrompt = Truncate(s, 200)
 			}
 		}
 	}
@@ -525,7 +545,8 @@ func (s *Store) bootstrapIndex(projPath string) (SessionsIndex, error) {
 	return idx, nil
 }
 
-func truncate(s string, maxLen int) string {
+// Truncate shortens s to at most maxLen runes, appending "..." if it was cut.
+func Truncate(s string, maxLen int) string {
 	r := []rune(s)
 	if len(r) <= maxLen {
 		return s
