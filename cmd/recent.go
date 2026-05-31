@@ -75,7 +75,7 @@ func runRecent(cmd *cobra.Command, args []string) error {
 			label = c.Slug
 		}
 		if label == "" && c.FirstPrompt != "" {
-			label = truncateStr(c.FirstPrompt, 50)
+			label = claude.Truncate(c.FirstPrompt, 50)
 		}
 		if label == "" {
 			label = "(no summary)"

@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/aahoughton/cctx/internal/claude"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +76,7 @@ func sessionCompletionsForProject(dirName, toComplete string) ([]string, cobra.S
 				label = c.Slug
 			}
 			if label == "" {
-				label = truncateStr(c.FirstPrompt, 40)
+				label = claude.Truncate(c.FirstPrompt, 40)
 			}
 			label = sanitizeLabel(label)
 			comps = append(comps, fmt.Sprintf("%s\t%s", id, label))

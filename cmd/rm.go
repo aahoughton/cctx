@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/aahoughton/cctx/internal/claude"
 	"github.com/spf13/cobra"
 )
 
@@ -95,7 +96,7 @@ func runRm(cmd *cobra.Command, args []string) error {
 			}
 			label := c.Summary
 			if label == "" {
-				label = truncateStr(c.FirstPrompt, 60)
+				label = claude.Truncate(c.FirstPrompt, 60)
 			}
 			if label == "" {
 				label = "(no summary)"

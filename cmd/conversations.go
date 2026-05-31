@@ -6,6 +6,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/aahoughton/cctx/internal/claude"
 	"github.com/spf13/cobra"
 )
 
@@ -64,7 +65,7 @@ func runConversations(cmd *cobra.Command, args []string) error {
 			label = c.Slug
 		}
 		if label == "" && c.FirstPrompt != "" {
-			label = truncateStr(c.FirstPrompt, 60)
+			label = claude.Truncate(c.FirstPrompt, 60)
 		}
 		if label == "" {
 			label = "(no summary)"
@@ -78,22 +79,13 @@ func runConversations(cmd *cobra.Command, args []string) error {
 	return w.Flush()
 }
 
-func truncateStr(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
-	}
-	return string(r[:n]) + "..."
-}
-
-// sanitizeLabel collapses newlines and surrounding whitespace into a single
-// space and truncates the result so it fits in a table row.
+// sanitizeLabel collapses embedded \t, \n, and \r into single spaces so the
+// label fits one row of a tabwriter table, then truncates it.
 func sanitizeLabel(s string) string {
-	// Replace any run of \r, \n, or surrounding whitespace with a single space.
 	var b strings.Builder
 	inSpace := false
 	for _, r := range s {
-		if r == '\n' || r == '\r' {
+		if r == '\n' || r == '\r' || r == '\t' {
 			if !inSpace {
 				b.WriteByte(' ')
 				inSpace = true
@@ -104,5 +96,5 @@ func sanitizeLabel(s string) string {
 		b.WriteRune(r)
 	}
 	out := strings.TrimSpace(b.String())
-	return truncateStr(out, 60)
+	return claude.Truncate(out, 60)
 }
