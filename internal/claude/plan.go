@@ -128,7 +128,6 @@ func BuildMvPlan(store *Store, oldPath, newPath string) (*Plan, error) {
 
 	oldProjDir := filepath.Join(store.BaseDir, project.DirName)
 	newDirName := EncodeDirName(newPath)
-	newProjDir := filepath.Join(store.BaseDir, newDirName)
 
 	replacer := &PathReplacer{OldPath: oldPath, NewPath: newPath}
 
@@ -143,7 +142,7 @@ func BuildMvPlan(store *Store, oldPath, newPath string) (*Plan, error) {
 	if fileExists(indexPath) {
 		plan.Add(PlanStep{
 			Kind:        StepRewriteIndex,
-			Description: fmt.Sprintf("update paths in sessions-index.json"),
+			Description: "update paths in sessions-index.json",
 			FilePath:    indexPath,
 		})
 	}
@@ -220,7 +219,6 @@ func BuildMvPlan(store *Store, oldPath, newPath string) (*Plan, error) {
 		})
 	}
 
-	_ = newProjDir // used during execution
 	return plan, nil
 }
 
@@ -238,7 +236,12 @@ func ExecuteMv(store *Store, oldPath, newPath string) error {
 
 	replacer := &PathReplacer{OldPath: oldPath, NewPath: newPath}
 
-	// 1. Rewrite conversation JSONL files (before moving, so paths are still valid)
+	// The index update rewrites entries' FullPath to point at newProjDir, so
+	// readers can't find the actual JSONL files until the directory rename
+	// happens. Do everything else first, then index + rename back-to-back to
+	// keep that broken window as short as possible.
+
+	// 1. Rewrite conversation JSONL files
 	convFiles, _ := filepath.Glob(filepath.Join(oldProjDir, "*.jsonl"))
 	for _, f := range convFiles {
 		if _, err := replacer.RewriteJSONLFile(f, []string{"cwd"}); err != nil {
@@ -249,24 +252,18 @@ func ExecuteMv(store *Store, oldPath, newPath string) error {
 	// 2. Rewrite subagent files
 	subagentFiles, _ := filepath.Glob(filepath.Join(oldProjDir, "*/subagents/*.jsonl"))
 	for _, f := range subagentFiles {
-		replacer.RewriteJSONLFile(f, []string{"cwd"})
-	}
-
-	// 3. Rewrite sessions-index.json
-	indexPath := filepath.Join(oldProjDir, "sessions-index.json")
-	if fileExists(indexPath) {
-		if err := replacer.RewriteSessionsIndex(indexPath, newProjDir); err != nil {
-			return fmt.Errorf("rewriting sessions-index.json: %w", err)
+		if _, err := replacer.RewriteJSONLFile(f, []string{"cwd"}); err != nil {
+			return fmt.Errorf("rewriting subagent %s: %w", filepath.Base(f), err)
 		}
 	}
 
-	// 4. Rewrite memory files
+	// 3. Rewrite memory files
 	memRefs, _ := replacer.ScanMemoryFiles(oldProjDir)
 	for fpath := range memRefs {
 		replacer.RewriteMemoryFile(fpath)
 	}
 
-	// 5. Rewrite history.jsonl
+	// 4. Rewrite history.jsonl
 	historyPath := filepath.Join(claudeDir, "history.jsonl")
 	if fileExists(historyPath) {
 		if _, err := replacer.RewriteJSONLFile(historyPath, []string{"project"}); err != nil {
@@ -274,9 +271,21 @@ func ExecuteMv(store *Store, oldPath, newPath string) error {
 		}
 	}
 
-	// 6. Rename the directory (last, so if anything above fails we haven't moved yet)
+	// 5. Rewrite sessions-index.json (paired with the directory rename below).
+	indexPath := filepath.Join(oldProjDir, "sessions-index.json")
+	if fileExists(indexPath) {
+		if err := replacer.RewriteSessionsIndex(indexPath, newProjDir); err != nil {
+			return fmt.Errorf("rewriting sessions-index.json: %w", err)
+		}
+	}
+
+	// 6. Rename the directory.
 	if err := os.Rename(oldProjDir, newProjDir); err != nil {
-		return fmt.Errorf("renaming project directory: %w", err)
+		return fmt.Errorf(
+			"renaming project directory (sessions-index.json already updated; "+
+				"rename %s to %s manually to complete the move): %w",
+			oldProjDir, newProjDir, err,
+		)
 	}
 
 	return nil
@@ -525,6 +534,12 @@ func mergeSessionsIndices(sourceProjDir, targetProjDir, targetPath string) error
 		if err := json.Unmarshal(data, &sourceIdx); err != nil {
 			return fmt.Errorf("parsing source index: %w", err)
 		}
+		if sourceIdx.Version != SchemaVersion {
+			return fmt.Errorf(
+				"source sessions-index.json version %d does not match expected version %d",
+				sourceIdx.Version, SchemaVersion,
+			)
+		}
 	}
 
 	// Read or bootstrap target index
@@ -533,6 +548,12 @@ func mergeSessionsIndices(sourceProjDir, targetProjDir, targetPath string) error
 	if data, err := os.ReadFile(targetIndexPath); err == nil {
 		if err := json.Unmarshal(data, &targetIdx); err != nil {
 			return fmt.Errorf("parsing target index: %w", err)
+		}
+		if targetIdx.Version != SchemaVersion {
+			return fmt.Errorf(
+				"target sessions-index.json version %d does not match expected version %d",
+				targetIdx.Version, SchemaVersion,
+			)
 		}
 	} else {
 		targetIdx.Version = SchemaVersion
