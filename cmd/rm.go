@@ -57,9 +57,6 @@ func runRm(cmd *cobra.Command, args []string) error {
 	}
 
 	claudeDir := filepath.Dir(store.BaseDir)
-	if err := claude.CheckNoLiveSessions(claudeDir, "cctx rm -x "+path); err != nil {
-		return err
-	}
 
 	project, err := store.FindProjectByPath(path)
 	if err != nil {
@@ -136,9 +133,20 @@ func runRm(cmd *cobra.Command, args []string) error {
 		fmt.Printf("         entry in %s\n", cfgPath)
 	}
 
+	if live, err := claude.LiveSessions(claudeDir); err == nil && len(live) > 0 {
+		fmt.Printf("\n[WARN]   %d live Claude session(s) — close them before applying\n", len(live))
+		for _, s := range live {
+			fmt.Printf("         pid %-7d %s\n", s.Pid, s.CWD)
+		}
+	}
+
 	if !rmExecute {
 		fmt.Printf("\nDry run. Pass -x/--execute to delete this project.\n")
 		return nil
+	}
+
+	if err := claude.CheckNoLiveSessions(claudeDir, "cctx rm -x "+path); err != nil {
+		return err
 	}
 
 	if err := os.RemoveAll(projDir); err != nil {

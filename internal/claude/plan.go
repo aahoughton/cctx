@@ -116,6 +116,38 @@ type MvOptions struct {
 	ReplaceEntry bool
 }
 
+// liveSessionDetail formats live sessions as one indented line per pid.
+func liveSessionDetail(live []LiveSession) string {
+	var b strings.Builder
+	for i, s := range live {
+		if i > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "pid %-7d %s", s.Pid, s.CWD)
+	}
+	return b.String()
+}
+
+// addLiveSessionWarning notes live sessions in a plan without refusing. Dry
+// runs stay readable; CheckNoLiveSessions does the refusing at execute time.
+func addLiveSessionWarning(plan *Plan, claudeDir string) {
+	live, err := LiveSessions(claudeDir)
+	if err != nil {
+		plan.AddWarning(fmt.Sprintf("could not check for live Claude sessions: %v", err))
+		return
+	}
+	if len(live) == 0 {
+		return
+	}
+	plan.Add(PlanStep{
+		Kind: StepWarning,
+		Description: fmt.Sprintf(
+			"%d live Claude session(s) — close them before applying, or %s will be rewritten from memory on exit",
+			len(live), GlobalConfigPath(claudeDir)),
+		Detail: liveSessionDetail(live),
+	})
+}
+
 // CheckNoLiveSessions refuses to proceed while any Claude session is running.
 // A session holds ~/.claude.json in memory and rewrites the whole file on exit,
 // so an edit made underneath one gets silently undone. hint names the command
@@ -129,8 +161,8 @@ func CheckNoLiveSessions(claudeDir, hint string) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%d live Claude session(s) would overwrite %s:",
 		len(live), GlobalConfigPath(claudeDir))
-	for _, s := range live {
-		fmt.Fprintf(&b, "\n  pid %-7d %s", s.Pid, s.CWD)
+	for _, line := range strings.Split(liveSessionDetail(live), "\n") {
+		fmt.Fprintf(&b, "\n  %s", line)
 	}
 	fmt.Fprintf(&b, "\nclose them, or re-run later with:\n  %s", hint)
 	return fmt.Errorf("%s", b.String())
@@ -200,10 +232,7 @@ func BuildMvPlan(store *Store, oldPath, newPath string, opts MvOptions) (*Plan, 
 
 	// The config entry is keyed by absolute path and lives outside the project
 	// directory, so the two halves of a move can be applied independently.
-	hint := fmt.Sprintf("cctx mv --config-only -x %s %s", oldPath, newPath)
-	if err := CheckNoLiveSessions(claudeDir, hint); err != nil {
-		return nil, err
-	}
+	addLiveSessionWarning(plan, claudeDir)
 
 	if opts.ConfigOnly {
 		if err := addConfigStep(plan, claudeDir, oldPath, newPath, opts.ReplaceEntry); err != nil {
@@ -335,6 +364,11 @@ func ExecuteMv(store *Store, oldPath, newPath string, opts MvOptions) error {
 	claudeDir := filepath.Dir(store.BaseDir)
 	cfgPath := GlobalConfigPath(claudeDir)
 
+	hint := fmt.Sprintf("cctx mv --config-only -x %s %s", oldPath, newPath)
+	if err := CheckNoLiveSessions(claudeDir, hint); err != nil {
+		return err
+	}
+
 	if opts.ConfigOnly {
 		return ApplyGlobalConfigMv(cfgPath, oldPath, newPath, opts.ReplaceEntry)
 	}
@@ -428,9 +462,7 @@ func BuildMergePlan(store *Store, sourcePath, targetPath string) (*Plan, error) 
 		return nil, fmt.Errorf("finding target project: %w", err)
 	}
 
-	if err := CheckNoLiveSessions(claudeDir, "cctx merge -x "+sourcePath+" "+targetPath); err != nil {
-		return nil, err
-	}
+	addLiveSessionWarning(plan, claudeDir)
 
 	// Check for active sessions on source
 	activeSessions, err := ActiveSessionsForPath(claudeDir, sourcePath)
@@ -574,6 +606,10 @@ func ExecuteMerge(store *Store, sourcePath, targetPath string) error {
 	}
 
 	claudeDir := filepath.Dir(store.BaseDir)
+	if err := CheckNoLiveSessions(claudeDir, "cctx merge -x "+sourcePath+" "+targetPath); err != nil {
+		return err
+	}
+
 	sourceProjDir := filepath.Join(store.BaseDir, sourceProj.DirName)
 	targetProjDir := filepath.Join(store.BaseDir, targetProj.DirName)
 

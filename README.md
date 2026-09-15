@@ -145,9 +145,10 @@ approvals, and the cost and session rollups. `mv` moves it, `rm` and `merge`
 remove it; without that, a renamed project prompts the folder-trust dialog
 again and loses its permissions.
 
-`mv`, `rm`, and `merge` refuse to run while any Claude session is live,
+`mv`, `rm`, and `merge` refuse to *apply* while any Claude session is live,
 because a session holds `~/.claude.json` in memory and rewrites the whole
-file when it exits, silently undoing the change. Close your sessions first.
+file when it exits, silently undoing the change. Dry runs still work and
+warn, naming the pids to close.
 If the files already moved and only the config entry is stale, finish with
 `cctx mv --config-only -x <old> <new>`; pass `--replace-config-entry` if you
 already dismissed the trust dialog at the new path and want the old entry to
