@@ -437,6 +437,37 @@ func TestFindConversation(t *testing.T) {
 	}
 }
 
+func TestParseConversationFile_SkipsNoisyFirstPrompt(t *testing.T) {
+	store, baseDir := setupTestStore(t)
+	projName := EncodeDirName(baseDir)
+	projDir := filepath.Join(baseDir, projName)
+
+	sid := "cccccccc-0000-0000-0000-000000000003"
+	records := []ConversationRecord{
+		{Type: "user", SessionID: sid, UUID: "m1",
+			Timestamp: "2026-01-01T00:00:00Z",
+			Message:   &MessageContent{Role: "user", Content: "<local-command-caveat>Caveat: local commands"}},
+		{Type: "user", SessionID: sid, UUID: "m2",
+			Timestamp: "2026-01-01T00:01:00Z",
+			Message:   &MessageContent{Role: "user", Content: "<command-name>/status</command-name>"}},
+		{Type: "user", SessionID: sid, UUID: "m3",
+			Timestamp: "2026-01-01T00:02:00Z",
+			Message:   &MessageContent{Role: "user", Content: "real question here"}},
+	}
+	writeConversationJSONL(t, projDir, sid, records)
+
+	convs, err := store.Conversations(projName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(convs) != 1 {
+		t.Fatalf("expected 1 conversation, got %d", len(convs))
+	}
+	if convs[0].FirstPrompt != "real question here" {
+		t.Errorf("firstPrompt = %q, want %q", convs[0].FirstPrompt, "real question here")
+	}
+}
+
 func TestMessageText(t *testing.T) {
 	// String content
 	rec := ConversationRecord{

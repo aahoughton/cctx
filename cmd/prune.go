@@ -182,11 +182,7 @@ func isEmptyConversation(s *claude.Store, conv *claude.Conversation) bool {
 		if text == "" {
 			continue
 		}
-		// Skip protocol noise
-		if strings.HasPrefix(text, "<local-command") ||
-			strings.HasPrefix(text, "<command-name>") ||
-			strings.HasPrefix(text, "<local-command-stdout>") ||
-			strings.HasPrefix(text, "<local-command-caveat>") {
+		if claude.IsProtocolNoise(text) {
 			continue
 		}
 		// Found a real user message

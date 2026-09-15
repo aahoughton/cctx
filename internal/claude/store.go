@@ -360,7 +360,7 @@ func (s *Store) parseConversationFile(fpath string) (Conversation, error) {
 		}
 
 		if rec.Type == "user" && firstPrompt == "" && rec.Message != nil {
-			if s, ok := rec.Message.Content.(string); ok {
+			if s, ok := rec.Message.Content.(string); ok && !IsProtocolNoise(s) {
 				firstPrompt = Truncate(s, 200)
 			}
 		}
@@ -401,6 +401,13 @@ func (s *Store) ReadConversation(fpath string) ([]ConversationRecord, error) {
 		records = append(records, rec)
 	}
 	return records, scanner.Err()
+}
+
+// IsProtocolNoise reports whether a user message is harness plumbing
+// (local command wrappers, caveats) rather than something the user typed.
+func IsProtocolNoise(text string) bool {
+	return strings.HasPrefix(text, "<local-command") ||
+		strings.HasPrefix(text, "<command-name>")
 }
 
 // MessageText extracts the plain text from a ConversationRecord's message.
