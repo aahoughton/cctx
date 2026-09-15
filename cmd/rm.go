@@ -103,6 +103,17 @@ func runRm(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Per-session file backups under ~/.claude/file-history/
+	var fhDirs []string
+	for _, c := range convs {
+		if fhDir := fileHistoryDir(c.SessionID); fhDir != "" {
+			fhDirs = append(fhDirs, fhDir)
+		}
+	}
+	if len(fhDirs) > 0 {
+		fmt.Printf("         %d file-history backup dir(s)\n", len(fhDirs))
+	}
+
 	if !rmExecute {
 		fmt.Printf("\nDry run. Pass -x/--execute to delete this project.\n")
 		return nil
@@ -111,7 +122,23 @@ func runRm(cmd *cobra.Command, args []string) error {
 	if err := os.RemoveAll(projDir); err != nil {
 		return fmt.Errorf("removing project directory: %w", err)
 	}
+	for _, d := range fhDirs {
+		os.RemoveAll(d)
+	}
 
 	fmt.Printf("\nDeleted %s\n", projDir)
 	return nil
+}
+
+// fileHistoryDir returns the session's backup directory under
+// ~/.claude/file-history/, or "" if the session has none.
+func fileHistoryDir(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	dir := filepath.Join(filepath.Dir(store.BaseDir), "file-history", sessionID)
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		return ""
+	}
+	return dir
 }

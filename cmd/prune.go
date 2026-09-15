@@ -129,6 +129,11 @@ func pruneProjectCount(project *claude.Project) (int, error) {
 				os.RemoveAll(sessionDir)
 			}
 
+			// Remove per-session file backups under ~/.claude/file-history/
+			if fhDir := fileHistoryDir(conv.SessionID); fhDir != "" {
+				os.RemoveAll(fhDir)
+			}
+
 			// Remove from sessions-index.json
 			store.UpdateSessionsIndex(project.DirName, func(idx *claude.SessionsIndex) error {
 				for i := range idx.Entries {
