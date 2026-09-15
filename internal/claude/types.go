@@ -50,6 +50,7 @@ type ConversationRecord struct {
 	GitBranch  string          `json:"gitBranch,omitempty"`
 	Version    string          `json:"version,omitempty"`
 	UserType   string          `json:"userType,omitempty"`
+	AITitle    string          `json:"aiTitle,omitempty"`
 	Message    *MessageContent `json:"message,omitempty"`
 }
 

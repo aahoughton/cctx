@@ -252,6 +252,8 @@ func TestConversationsFromFiles(t *testing.T) {
 			Timestamp:  now.Format(time.RFC3339Nano),
 			Message:    &MessageContent{Role: "user", Content: "explain goroutines"},
 		},
+		{Type: "ai-title", SessionID: sid, AITitle: "first title"},
+		{Type: "ai-title", SessionID: sid, AITitle: "goroutine walkthrough"},
 	}
 	writeConversationJSONL(t, projDir, sid, records)
 
@@ -276,6 +278,9 @@ func TestConversationsFromFiles(t *testing.T) {
 	}
 	if c.FirstPrompt != "hello world" {
 		t.Errorf("firstPrompt = %q, want %q", c.FirstPrompt, "hello world")
+	}
+	if c.Summary != "goroutine walkthrough" {
+		t.Errorf("summary = %q, want last ai-title %q", c.Summary, "goroutine walkthrough")
 	}
 }
 

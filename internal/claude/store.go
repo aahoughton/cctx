@@ -319,6 +319,7 @@ func (s *Store) parseConversationFile(fpath string) (Conversation, error) {
 		lastTime    time.Time
 		msgCount    int
 		slug        string
+		summary     string
 		sessionID   string
 		firstPrompt string
 	)
@@ -336,6 +337,10 @@ func (s *Store) parseConversationFile(fpath string) (Conversation, error) {
 		}
 		if rec.Slug != "" {
 			slug = rec.Slug
+		}
+		// Session titles are appended as ai-title records; the last one wins.
+		if rec.Type == "ai-title" && rec.AITitle != "" {
+			summary = rec.AITitle
 		}
 
 		if rec.Timestamp != "" {
@@ -363,6 +368,7 @@ func (s *Store) parseConversationFile(fpath string) (Conversation, error) {
 
 	conv.SessionID = sessionID
 	conv.Slug = slug
+	conv.Summary = summary
 	conv.FirstPrompt = firstPrompt
 	conv.MessageCount = msgCount
 	conv.Created = firstTime
