@@ -92,11 +92,11 @@ func runRename(cmd *cobra.Command, args []string) error {
 			}
 			fmt.Printf("LLM-generated name: %s\n", newName)
 		} else {
-			return fmt.Errorf("no name provided and no LLM configured\n\n" +
-				"Either provide a name:  cctx rename %s \"my name\"\n" +
-				"Or configure an LLM:    ~/.config/cctx/config.toml\n\n" +
-				"  [llm]\n" +
-				"  url = \"http://localhost:11434/v1\"\n" +
+			return fmt.Errorf("no name provided and no LLM configured\n\n"+
+				"Either provide a name:  cctx rename %s \"my name\"\n"+
+				"Or configure an LLM:    ~/.config/cctx/config.toml\n\n"+
+				"  [llm]\n"+
+				"  url = \"http://localhost:11434/v1\"\n"+
 				"  model = \"qwen3-4\"", sessionPrefix)
 		}
 	}

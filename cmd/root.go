@@ -26,7 +26,7 @@ var store *claude.Store
 var rootCmd = &cobra.Command{
 	Use:     "cctx",
 	Version: version(),
-	Short: "Inspect and manage Claude Code conversations and projects",
+	Short:   "Inspect and manage Claude Code conversations and projects",
 	Long: `cctx — Claude Code context manager.
 
 Browse projects, list conversations, generate summaries, rename sessions,
@@ -59,9 +59,9 @@ func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
 	completionCmd := &cobra.Command{
-		Use:   "completion <bash|zsh|fish>",
-		Short: "Generate shell completion script",
-		Args:  cobra.ExactArgs(1),
+		Use:       "completion <bash|zsh|fish>",
+		Short:     "Generate shell completion script",
+		Args:      cobra.ExactArgs(1),
 		ValidArgs: []string{"bash", "zsh", "fish"},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			switch args[0] {

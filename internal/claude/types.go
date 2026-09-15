@@ -24,17 +24,17 @@ type SessionsIndex struct {
 
 // IndexEntry is one conversation's metadata in sessions-index.json.
 type IndexEntry struct {
-	SessionID   string `json:"sessionId"`
-	FullPath    string `json:"fullPath"`
-	FileMtime   int64  `json:"fileMtime"`
-	FirstPrompt string `json:"firstPrompt"`
-	Summary     string `json:"summary"`
-	MessageCount int   `json:"messageCount"`
-	Created     string `json:"created"`
-	Modified    string `json:"modified"`
-	GitBranch   string `json:"gitBranch"`
-	ProjectPath string `json:"projectPath"`
-	IsSidechain bool   `json:"isSidechain"`
+	SessionID    string `json:"sessionId"`
+	FullPath     string `json:"fullPath"`
+	FileMtime    int64  `json:"fileMtime"`
+	FirstPrompt  string `json:"firstPrompt"`
+	Summary      string `json:"summary"`
+	MessageCount int    `json:"messageCount"`
+	Created      string `json:"created"`
+	Modified     string `json:"modified"`
+	GitBranch    string `json:"gitBranch"`
+	ProjectPath  string `json:"projectPath"`
+	IsSidechain  bool   `json:"isSidechain"`
 }
 
 // ConversationRecord represents a single line in a .jsonl conversation file.
@@ -62,9 +62,9 @@ type MessageContent struct {
 
 // ContentBlock represents a structured content block in assistant messages.
 type ContentBlock struct {
-	Type  string `json:"type"`
-	Text  string `json:"text,omitempty"`
-	Name  string `json:"name,omitempty"`
+	Type  string      `json:"type"`
+	Text  string      `json:"text,omitempty"`
+	Name  string      `json:"name,omitempty"`
 	Input interface{} `json:"input,omitempty"`
 }
 

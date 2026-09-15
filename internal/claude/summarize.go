@@ -18,8 +18,8 @@ const maxMsgChars = 150
 // All other models use the OpenAI-compatible chat completions API (Ollama,
 // LM Studio, vLLM, llama.cpp, OpenAI, Groq, Together, etc).
 type LLMConfig struct {
-	BaseURL string `toml:"url"`    // e.g. "http://localhost:11434/v1" for Ollama
-	Model   string `toml:"model"`  // e.g. "llama3", "gpt-4o-mini", "claude-haiku-4-5"
+	BaseURL string `toml:"url"`     // e.g. "http://localhost:11434/v1" for Ollama
+	Model   string `toml:"model"`   // e.g. "llama3", "gpt-4o-mini", "claude-haiku-4-5"
 	APIKey  string `toml:"api_key"` // optional for local models, required for hosted
 }
 

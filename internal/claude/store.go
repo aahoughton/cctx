@@ -314,12 +314,12 @@ func (s *Store) parseConversationFile(fpath string) (Conversation, error) {
 	}
 
 	var (
-		conv       Conversation
-		firstTime  time.Time
-		lastTime   time.Time
-		msgCount   int
-		slug       string
-		sessionID  string
+		conv        Conversation
+		firstTime   time.Time
+		lastTime    time.Time
+		msgCount    int
+		slug        string
+		sessionID   string
 		firstPrompt string
 	)
 
