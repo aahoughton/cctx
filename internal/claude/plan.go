@@ -116,11 +116,11 @@ type MvOptions struct {
 	ReplaceEntry bool
 }
 
-// checkNoLiveSessions refuses to proceed while any Claude session is running.
+// CheckNoLiveSessions refuses to proceed while any Claude session is running.
 // A session holds ~/.claude.json in memory and rewrites the whole file on exit,
 // so an edit made underneath one gets silently undone. hint names the command
 // to re-run once the sessions are closed.
-func checkNoLiveSessions(claudeDir, hint string) error {
+func CheckNoLiveSessions(claudeDir, hint string) error {
 	live, err := LiveSessions(claudeDir)
 	if err != nil || len(live) == 0 {
 		return err
@@ -201,7 +201,7 @@ func BuildMvPlan(store *Store, oldPath, newPath string, opts MvOptions) (*Plan, 
 	// The config entry is keyed by absolute path and lives outside the project
 	// directory, so the two halves of a move can be applied independently.
 	hint := fmt.Sprintf("cctx mv --config-only -x %s %s", oldPath, newPath)
-	if err := checkNoLiveSessions(claudeDir, hint); err != nil {
+	if err := CheckNoLiveSessions(claudeDir, hint); err != nil {
 		return nil, err
 	}
 
@@ -428,6 +428,10 @@ func BuildMergePlan(store *Store, sourcePath, targetPath string) (*Plan, error) 
 		return nil, fmt.Errorf("finding target project: %w", err)
 	}
 
+	if err := CheckNoLiveSessions(claudeDir, "cctx merge -x "+sourcePath+" "+targetPath); err != nil {
+		return nil, err
+	}
+
 	// Check for active sessions on source
 	activeSessions, err := ActiveSessionsForPath(claudeDir, sourcePath)
 	if err != nil {
@@ -550,6 +554,11 @@ func BuildMergePlan(store *Store, sourcePath, targetPath string) (*Plan, error) 
 		Description: fmt.Sprintf("remove %s", sourceProj.DirName),
 	})
 
+	// 8. Drop the source project's global config entry
+	if err := addConfigStep(plan, claudeDir, sourcePath, "", false); err != nil {
+		return nil, err
+	}
+
 	return plan, nil
 }
 
@@ -646,7 +655,12 @@ func ExecuteMerge(store *Store, sourcePath, targetPath string) error {
 	}
 
 	// 6. Remove source directory
-	return os.RemoveAll(sourceProjDir)
+	if err := os.RemoveAll(sourceProjDir); err != nil {
+		return err
+	}
+
+	// 7. Drop the source project's entry from the global config.
+	return ApplyGlobalConfigDelete(GlobalConfigPath(claudeDir), sourcePath)
 }
 
 func mergeSessionsIndices(sourceProjDir, targetProjDir, targetPath string) error {

@@ -20,6 +20,11 @@ Resolves the target project from:
   2. The -p/--project flag
   3. The current working directory
 
+Also removes the project's entry in ~/.claude.json, which carries folder
+trust, tool permissions and MCP approvals. Refuses to proceed while any
+Claude session is running, since sessions rewrite that file in full when
+they exit.
+
 Dry-run by default — pass -x/--execute to delete files.
 
 Examples:
@@ -51,12 +56,25 @@ func runRm(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	claudeDir := filepath.Dir(store.BaseDir)
+	if err := claude.CheckNoLiveSessions(claudeDir, "cctx rm -x "+path); err != nil {
+		return err
+	}
+
 	project, err := store.FindProjectByPath(path)
 	if err != nil {
 		return err
 	}
 
 	projDir := filepath.Join(store.BaseDir, project.DirName)
+	cfgPath := claude.GlobalConfigPath(claudeDir)
+
+	// FindProjectByPath accepts a substring, so use the resolved path as the
+	// config key rather than whatever the user typed.
+	cfgEdit, err := claude.PreviewGlobalConfigDelete(cfgPath, project.OriginalPath)
+	if err != nil {
+		return err
+	}
 
 	// Gather contents
 	convs, _ := store.Conversations(project.DirName)
@@ -114,6 +132,10 @@ func runRm(cmd *cobra.Command, args []string) error {
 		fmt.Printf("         %d file-history backup dir(s)\n", len(fhDirs))
 	}
 
+	if !cfgEdit.Empty() {
+		fmt.Printf("         entry in %s\n", cfgPath)
+	}
+
 	if !rmExecute {
 		fmt.Printf("\nDry run. Pass -x/--execute to delete this project.\n")
 		return nil
@@ -124,6 +146,9 @@ func runRm(cmd *cobra.Command, args []string) error {
 	}
 	for _, d := range fhDirs {
 		os.RemoveAll(d)
+	}
+	if err := claude.ApplyGlobalConfigDelete(cfgPath, project.OriginalPath); err != nil {
+		return fmt.Errorf("removing entry from %s: %w", cfgPath, err)
 	}
 
 	fmt.Printf("\nDeleted %s\n", projDir)
