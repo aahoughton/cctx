@@ -226,35 +226,18 @@ func (r *PathReplacer) RewriteMemoryFile(fpath string) error {
 	return atomicWrite(fpath, []byte(newData), 0600)
 }
 
-// ActiveSessionsForPath checks ~/.claude/sessions/ for active sessions
-// referencing the given path. Returns session file paths that match.
+// ActiveSessionsForPath returns the session files of live Claude processes
+// whose working directory is inside the given project path.
 func ActiveSessionsForPath(claudeDir, projectPath string) ([]string, error) {
-	sessDir := filepath.Join(claudeDir, "sessions")
-	entries, err := os.ReadDir(sessDir)
+	live, err := LiveSessions(claudeDir)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
 		return nil, err
 	}
 
 	var active []string
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		fpath := filepath.Join(sessDir, entry.Name())
-		data, err := os.ReadFile(fpath)
-		if err != nil {
-			continue
-		}
-		var sess struct {
-			CWD string `json:"cwd"`
-		}
-		if json.Unmarshal(data, &sess) == nil {
-			if sess.CWD == projectPath || strings.HasPrefix(sess.CWD, projectPath+"/") {
-				active = append(active, fpath)
-			}
+	for _, s := range live {
+		if s.CWD == projectPath || strings.HasPrefix(s.CWD, projectPath+"/") {
+			active = append(active, s.File)
 		}
 	}
 	return active, nil

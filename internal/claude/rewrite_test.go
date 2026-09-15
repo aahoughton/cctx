@@ -2,6 +2,7 @@ package claude
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,27 +173,50 @@ func TestActiveSessionsForPath(t *testing.T) {
 	sessDir := filepath.Join(dir, "sessions")
 	os.MkdirAll(sessDir, 0755)
 
-	// Active session matching our path
-	sess1 := map[string]interface{}{"cwd": "/test/project", "pid": 12345}
-	data1, _ := json.Marshal(sess1)
-	os.WriteFile(filepath.Join(sessDir, "12345.json"), data1, 0644)
+	writeSession := func(pid int, cwd string) {
+		data, _ := json.Marshal(map[string]interface{}{"cwd": cwd, "pid": pid})
+		os.WriteFile(filepath.Join(sessDir, fmt.Sprintf("%d.json", pid)), data, 0644)
+	}
 
-	// Active session for different path
-	sess2 := map[string]interface{}{"cwd": "/other/project", "pid": 67890}
-	data2, _ := json.Marshal(sess2)
-	os.WriteFile(filepath.Join(sessDir, "67890.json"), data2, 0644)
+	live := os.Getpid()
+	dead := deadPid(t)
+
+	writeSession(live, "/test/project")
+	writeSession(live+1000000, "/other/project") // different path, also not running
+	writeSession(dead, "/test/project")          // stale file from a crashed session
 
 	active, err := ActiveSessionsForPath(dir, "/test/project")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(active) != 1 {
-		t.Errorf("expected 1 active session, got %d", len(active))
+		t.Errorf("expected 1 active session, got %d: %v", len(active), active)
 	}
 
 	active2, _ := ActiveSessionsForPath(dir, "/nonexistent")
 	if len(active2) != 0 {
 		t.Errorf("expected 0 active sessions for nonexistent, got %d", len(active2))
+	}
+}
+
+func TestActiveSessionsForPath_SubdirectoryCounts(t *testing.T) {
+	dir := t.TempDir()
+	sessDir := filepath.Join(dir, "sessions")
+	os.MkdirAll(sessDir, 0755)
+
+	pid := os.Getpid()
+	data, _ := json.Marshal(map[string]interface{}{"cwd": "/test/project/sub", "pid": pid})
+	os.WriteFile(filepath.Join(sessDir, fmt.Sprintf("%d.json", pid)), data, 0644)
+
+	active, _ := ActiveSessionsForPath(dir, "/test/project")
+	if len(active) != 1 {
+		t.Errorf("session in subdirectory should count as active, got %d", len(active))
+	}
+
+	// A sibling path that merely shares a prefix must not match.
+	active2, _ := ActiveSessionsForPath(dir, "/test/proj")
+	if len(active2) != 0 {
+		t.Errorf("prefix-only match should not count, got %d", len(active2))
 	}
 }
 
