@@ -125,6 +125,7 @@ cctx rm                              # preview project removal
 cctx rm -x                           # apply
 cctx mv ~/old/path ~/new/path        # preview path update
 cctx mv -x ~/old/path ~/new/path     # apply
+cctx mv --config-only -x ~/old ~/new # update ~/.claude.json only
 cctx merge ~/orphaned ~/current      # preview merge
 cctx merge -x ~/orphaned ~/current   # apply
 cctx prune                           # preview empty conversation removal
@@ -134,6 +135,23 @@ cctx prune -Ax                       # apply across all projects
 All destructive operations are dry-run by default and require `-x` to apply.
 
 The `-p` flag scopes any command to a specific project (defaults to cwd).
+
+### Project state lives in two places
+
+Conversations live in `~/.claude/projects/<encoded-path>/`, but Claude Code
+also keeps an entry per project in `~/.claude.json`, keyed by the literal
+absolute path. That entry holds folder trust, pre-approved tools, MCP server
+approvals, and the cost and session rollups. `mv` moves it, `rm` and `merge`
+remove it; without that, a renamed project prompts the folder-trust dialog
+again and loses its permissions.
+
+`mv`, `rm`, and `merge` refuse to run while any Claude session is live,
+because a session holds `~/.claude.json` in memory and rewrites the whole
+file when it exits, silently undoing the change. Close your sessions first.
+If the files already moved and only the config entry is stale, finish with
+`cctx mv --config-only -x <old> <new>`; pass `--replace-config-entry` if you
+already dismissed the trust dialog at the new path and want the old entry to
+win.
 
 ## LLM Configuration
 

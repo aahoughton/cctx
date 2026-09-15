@@ -27,6 +27,7 @@ const (
 	StepMoveFile
 	StepMergeIndex
 	StepDeleteDir
+	StepConfig
 	StepInfo
 	StepWarning
 )
@@ -97,6 +98,8 @@ func kindPrefix(k StepKind) string {
 		return "[merge] "
 	case StepDeleteDir:
 		return "[delete]"
+	case StepConfig:
+		return "[config]"
 	case StepWarning:
 		return "[WARN]  "
 	default:
@@ -104,10 +107,110 @@ func kindPrefix(k StepKind) string {
 	}
 }
 
+// MvOptions controls how a project rename is planned and executed.
+type MvOptions struct {
+	// ConfigOnly limits the operation to the ~/.claude.json entry, for
+	// finishing a move whose on-disk half already completed.
+	ConfigOnly bool
+	// ReplaceEntry permits overwriting an existing destination entry.
+	ReplaceEntry bool
+}
+
+// checkNoLiveSessions refuses to proceed while any Claude session is running.
+// A session holds ~/.claude.json in memory and rewrites the whole file on exit,
+// so an edit made underneath one gets silently undone. hint names the command
+// to re-run once the sessions are closed.
+func checkNoLiveSessions(claudeDir, hint string) error {
+	live, err := LiveSessions(claudeDir)
+	if err != nil || len(live) == 0 {
+		return err
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "%d live Claude session(s) would overwrite %s:",
+		len(live), GlobalConfigPath(claudeDir))
+	for _, s := range live {
+		fmt.Fprintf(&b, "\n  pid %-7d %s", s.Pid, s.CWD)
+	}
+	fmt.Fprintf(&b, "\nclose them, or re-run later with:\n  %s", hint)
+	return fmt.Errorf("%s", b.String())
+}
+
+// addConfigStep appends the ~/.claude.json change to a plan. A move to a path
+// that already has an entry is refused here, at plan time, so the dry run
+// surfaces it.
+func addConfigStep(plan *Plan, claudeDir, oldPath, newPath string, replaceEntry bool) error {
+	cfgPath := GlobalConfigPath(claudeDir)
+
+	var (
+		edit *GlobalConfigEdit
+		err  error
+	)
+	if newPath == "" {
+		edit, err = PreviewGlobalConfigDelete(cfgPath, oldPath)
+	} else {
+		edit, err = PreviewGlobalConfigMv(cfgPath, oldPath, newPath)
+	}
+	if err != nil {
+		return err
+	}
+	if edit.Empty() {
+		return nil
+	}
+
+	if edit.HasDestEntry && edit.HasSourceEntry && !replaceEntry {
+		return fmt.Errorf(
+			"%s already has a project entry for %s\n"+
+				"pass --replace-config-entry to overwrite it with the entry from %s",
+			cfgPath, newPath, oldPath,
+		)
+	}
+
+	if edit.HasSourceEntry {
+		desc := fmt.Sprintf("remove projects entry from %s", cfgPath)
+		detail := oldPath
+		if newPath != "" {
+			desc = fmt.Sprintf("move projects entry in %s", cfgPath)
+			detail = fmt.Sprintf("%s -> %s", oldPath, newPath)
+		}
+		plan.Add(PlanStep{Kind: StepConfig, Description: desc, Detail: detail})
+	}
+
+	if len(edit.RepoPathKeys) > 0 {
+		verb := "drop path from"
+		if newPath != "" {
+			verb = "repoint"
+		}
+		plan.Add(PlanStep{
+			Kind:        StepConfig,
+			Description: fmt.Sprintf("%s githubRepoPaths: %s", verb, strings.Join(edit.RepoPathKeys, ", ")),
+		})
+	}
+
+	if edit.HasDestEntry && edit.HasSourceEntry {
+		plan.AddWarning(fmt.Sprintf("existing entry for %s will be replaced", newPath))
+	}
+	return nil
+}
+
 // BuildMvPlan creates a plan for renaming a project from oldPath to newPath.
-func BuildMvPlan(store *Store, oldPath, newPath string) (*Plan, error) {
+func BuildMvPlan(store *Store, oldPath, newPath string, opts MvOptions) (*Plan, error) {
 	plan := &Plan{}
 	claudeDir := filepath.Dir(store.BaseDir) // ~/.claude
+
+	// The config entry is keyed by absolute path and lives outside the project
+	// directory, so the two halves of a move can be applied independently.
+	hint := fmt.Sprintf("cctx mv --config-only -x %s %s", oldPath, newPath)
+	if err := checkNoLiveSessions(claudeDir, hint); err != nil {
+		return nil, err
+	}
+
+	if opts.ConfigOnly {
+		if err := addConfigStep(plan, claudeDir, oldPath, newPath, opts.ReplaceEntry); err != nil {
+			return nil, err
+		}
+		return plan, nil
+	}
 
 	// Find the project
 	project, err := store.FindProjectByPath(oldPath)
@@ -219,17 +322,27 @@ func BuildMvPlan(store *Store, oldPath, newPath string) (*Plan, error) {
 		})
 	}
 
+	// 7. Global config entry
+	if err := addConfigStep(plan, claudeDir, oldPath, newPath, opts.ReplaceEntry); err != nil {
+		return nil, err
+	}
+
 	return plan, nil
 }
 
 // ExecuteMv executes a project rename based on a previously built plan.
-func ExecuteMv(store *Store, oldPath, newPath string) error {
+func ExecuteMv(store *Store, oldPath, newPath string, opts MvOptions) error {
+	claudeDir := filepath.Dir(store.BaseDir)
+	cfgPath := GlobalConfigPath(claudeDir)
+
+	if opts.ConfigOnly {
+		return ApplyGlobalConfigMv(cfgPath, oldPath, newPath, opts.ReplaceEntry)
+	}
+
 	project, err := store.FindProjectByPath(oldPath)
 	if err != nil {
 		return err
 	}
-
-	claudeDir := filepath.Dir(store.BaseDir)
 	oldProjDir := filepath.Join(store.BaseDir, project.DirName)
 	newDirName := EncodeDirName(newPath)
 	newProjDir := filepath.Join(store.BaseDir, newDirName)
@@ -285,6 +398,16 @@ func ExecuteMv(store *Store, oldPath, newPath string) error {
 			"renaming project directory (sessions-index.json already updated; "+
 				"rename %s to %s manually to complete the move): %w",
 			oldProjDir, newProjDir, err,
+		)
+	}
+
+	// 7. Global config entry, last: the on-disk move is complete by now, so a
+	// failure here can be retried on its own with --config-only.
+	if err := ApplyGlobalConfigMv(cfgPath, oldPath, newPath, opts.ReplaceEntry); err != nil {
+		return fmt.Errorf(
+			"updating %s (files already moved; finish with "+
+				"'cctx mv --config-only -x %s %s'): %w",
+			cfgPath, oldPath, newPath, err,
 		)
 	}
 
